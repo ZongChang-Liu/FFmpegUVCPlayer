@@ -1,4 +1,8 @@
-这个项目使用Qt5.15.2 与 MSVC2022 64bit编译器编译的release版本
+这是一个简单的UVC摄像头播放器
+
+使用FFmpeg对UVC摄像头进行显示，并使用dshow控制相机的属性参数
+
+这个项目使用Qt5.15.2 与 MSVC2022 64bit编译器编译的release版本，只支持Windows
 
 编译前请请自行配置ffmpeg的安装目录
 
