@@ -1,0 +1,9 @@
+﻿/cmake-build-debug/
+/cmake-build-release/
+/cmake-build-relwithdebinfo/
+/install/
+/out/
+/.idea/
+/.vs/
+.gitmodules
+CMakeSettings.json

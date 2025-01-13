@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/include">
+        <file>Font/ElaAwesome.ttf</file>
+    </qresource>
+</RCC>
