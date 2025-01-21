@@ -10,6 +10,7 @@
 #include "ElaWindow.h"
 #include "ElaMenu.h"
 #include "ElaText.h"
+#include "UVC_Win_DShow.h"
 #pragma execution_character_set(push, "utf-8")
 
 
@@ -21,11 +22,12 @@
 #include <atlwin.h>
 #endif
 
-struct CameraDevice;
-class CameraSettingPage;
+
 class VideoWidget;
 class FFmpegPlayer;
+class FFmpegRecorder;
 class CameraSwitchingPage;
+class CameraSettingPage;
 
 class MyMainWindows final : public ElaWindow {
 Q_OBJECT
@@ -39,7 +41,14 @@ public:
 
     void createDockWidget(const QString &title, QWidget *widget, Qt::DockWidgetArea area);
 
-    Q_SLOT void onCameraChanged(const CameraDevice& cameraDevice, int width, int height, int fps, const QString& format) const;
+    Q_SLOT void onCameraChanged(const CameraDevice& cameraDevice, int width, int height, double fps, const QString& format) const;
+    Q_SLOT void onCameraRecord(bool record) const;
+    Q_SLOT void onCameraScreenShot() const;
+
+    Q_SLOT void onPlayStatusChange(int status) const;
+    Q_SLOT void onRecordStatusChange(int status) const;
+
+    Q_SLOT void onTranslatorChanged(bool checked) const;
 
     Q_SLOT void keyPressEvent(QKeyEvent* event) override;
 
@@ -58,6 +67,7 @@ private:
     CameraSwitchingPage *m_cameraSwitchingPage{nullptr};
     CameraSettingPage *m_cameraSettingPage{nullptr};
     FFmpegPlayer *m_ffmpegPlayer{nullptr};
+    FFmpegRecorder *m_ffmpegRecorder{nullptr};
     VideoWidget *m_videoWidget{nullptr};
 #ifdef Q_OS_WIN
     GUID CAMERA = {0xE5323777, 0xF976, 0x4f5b, { 0x9B, 0x55, 0xB9, 0x46, 0x99, 0xC4, 0x6E, 0x44}};

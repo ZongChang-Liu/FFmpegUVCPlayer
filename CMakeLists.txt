@@ -10,7 +10,7 @@ set(ELAWIDGETTOOLS_PREFIX_DIR "${PROJECT_SOURCE_DIR}/3rdparty/ElaWidgetTools")
 set(SPDLOG_PREFIX_DIR "${PROJECT_SOURCE_DIR}/3rdparty/spdlog")
 set(TINYXML2_PREFIX_DIR "${PROJECT_SOURCE_DIR}/3rdparty/tinyxml2")
 set(QT_PREFIX_DIR "C:/Qt5/Qt5.15.2/5.15.2/msvc2019_64")
-set(FFmpeg_PREFIX_DIR "C:/ffmpeg6.1.1")
+set(FFmpeg_PREFIX_DIR "C:/ffmpeg7.1")
 
 set(CMAKE_PREFIX_PATH   "${ELAWIDGETTOOLS_PREFIX_DIR}/lib/cmake"
                         "${SPDLOG_PREFIX_DIR}/lib/cmake"
@@ -21,12 +21,20 @@ set(QT_MODULES
         Gui
         Widgets
 )
-find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS ${QT_MODULES})
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${QT_MODULES})
+find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS ${QT_MODULES} LinguistTools)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${QT_MODULES} LinguistTools)
 message(STATUS "Qt version: ${Qt${QT_VERSION_MAJOR}_VERSION}")
 find_package(ElaWidgetTools REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(tinyxml2 REQUIRED)
+
+set(TS_FILES "translations/en.ts")
+set_source_files_properties(${TS_FILES} PROPERTIES OUTPUT_LOCATION "${CMAKE_SOURCE_DIR}/resources/translations")
+if (${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+    qt_create_translation(QM_FILES "${CMAKE_SOURCE_DIR}" ${TS_FILES})
+else ()
+    qt_create_translation(QM_FILES "${CMAKE_SOURCE_DIR}" ${TS_FILES})
+endif ()
 
 file(GLOB_RECURSE HEADERS "include/*.h")
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h")
@@ -38,7 +46,17 @@ else ()
     qt5_add_big_resources(RESOURCES resources.qrc ${ELAWIDGETTOOLS_PREFIX_DIR}/include/ElaWidgetTools.qrc)
 endif ()
 
-add_executable(FFmpegPlayer logo.rc main.cpp MyMainWindows.cpp MyMainWindows.h ${HEADERS} ${SOURCES} ${RESOURCES})
+add_executable(${PROJECT_NAME}
+#        WIN32
+        logo.rc
+        main.cpp
+        MyMainWindows.cpp
+        MyMainWindows.h
+        ${HEADERS}
+        ${SOURCES}
+        ${RESOURCES}
+        ${TS_FILES}
+)
 
 foreach (QT_MODULE ${QT_MODULES})
     target_link_libraries(${PROJECT_NAME} PUBLIC Qt${QT_VERSION_MAJOR}::${QT_MODULE})

@@ -23,7 +23,7 @@ public:
 
     void clearParameter() const;
 
-    void updateParameter(const CameraDevice& cameraInfo,int width, int height, int fps);
+    void updateParameter(const CameraDevice& cameraInfo,int width, int height, double fps);
 
     void addParameterItem(const DeviceParameter& parameter);
 
@@ -32,7 +32,6 @@ private:
     ElaText *m_cameraInfoLabel;
     ElaPushButton *m_resetButton;
     QWidget *m_scrollWidget;
-    ElaScrollArea *m_scrollPage;
     CameraDevice m_cameraInfo;
     std::vector<DeviceParameter> m_parameters;
 };

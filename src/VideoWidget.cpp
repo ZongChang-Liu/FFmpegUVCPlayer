@@ -18,8 +18,11 @@ VideoWidget::VideoWidget(QWidget *parent) : QWidget(parent) {
 
 VideoWidget::~VideoWidget() = default;
 
-void VideoWidget::onUpdateFrame(const QImage& image) {
-    m_image = image;
+void VideoWidget::onUpdateFrame(const AVFrame* frame) {
+    if (frame == nullptr) {
+        return;
+    }
+    m_image = QImage(frame->data[0], frame->width, frame->height, frame->linesize[0], QImage::Format_RGB888).copy();
     if (m_lastFrameTime == 0) {
         m_lastFrameTime = QDateTime::currentMSecsSinceEpoch();
     }
@@ -28,7 +31,6 @@ void VideoWidget::onUpdateFrame(const QImage& image) {
         m_frameRate = m_frameCount * 1000.0 / (currentTime - m_lastFrameTime);
         m_frameCount = 0;
         m_lastFrameTime = currentTime;
-        LOG_DEBUG("FrameRate: {}", m_frameRate);
         m_showRecordFlag = !m_showRecordFlag;
     }
     m_frameCount++;
@@ -84,22 +86,34 @@ void VideoWidget::paintEvent(QPaintEvent *event) {
     pixmapPath.addRoundedRect(foregroundRect, m_radius, m_radius);
     painter.setClipPath(pixmapPath);
     painter.drawPixmap(foregroundRect, QPixmap::fromImage(m_image), m_image.rect());
-    if (m_recordFlag && m_showRecordFlag) {
+    if (m_recordFlag) {
         painter.setPen(Qt::red);
         painter.setBrush(Qt::red);
-        painter.drawEllipse((this->rect().width() - pixmap.width()) / 2 + m_margin + 15,
-                            (this->rect().height() - pixmap.height()) / 2 + m_margin + 15, 15, 15);
+        if (m_showRecordFlag)
+        {
+            painter.drawEllipse((this->rect().width() - pixmap.width()) / 2 + m_margin + 15,
+                                (this->rect().height() - pixmap.height()) / 2 + m_margin + 15, 15, 15);
 
-        //设置字体
-        QFont font;
-        font.setFamily("Microsoft YaHei");
-        font.setPixelSize(20);
-        font.setBold(true);
-        painter.setFont(font);
-        int high = QFontMetrics(font).height();
-        painter.drawText((this->rect().width() - pixmap.width()) / 2 + m_margin + 35,
-                         (this->rect().height() - pixmap.height()) / 2 + m_margin + high + 4,
-                         QString("REC"));
+            //设置字体
+            QFont font;
+            font.setFamily("Microsoft YaHei");
+            font.setPixelSize(20);
+            font.setBold(true);
+            painter.setFont(font);
+            const int high = QFontMetrics(font).height();
+            painter.drawText((this->rect().width() - pixmap.width()) / 2 + m_margin + 35,
+                             (this->rect().height() - pixmap.height()) / 2 + m_margin + high + 4,
+                             QString("REC"));
+        }
+
+        painter.setPen(QPen(Qt::red, 5));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRoundedRect(
+                (this->rect().width() - pixmap.width()) / 2 + m_margin,
+                (this->rect().height() - pixmap.height()) / 2 + m_margin,
+                pixmap.width() - 2 * m_margin,
+                pixmap.height() - 2 * m_margin,
+                m_radius, m_radius);
     }
 }
 

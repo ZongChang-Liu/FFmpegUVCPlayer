@@ -18,14 +18,17 @@ public:
     explicit CameraSwitchingPage(QWidget *parent = nullptr);
     ~CameraSwitchingPage() override;
 
-
     void updateCameraInfo();
+
+    void setRecordButtonEnable(bool flag) const;
+    void setScreenShotButtonEnable(bool flag) const;
+    void setRecordButtonChecked(bool flag) const;
 
     Q_SLOT void onCameraChanged(int index);
     Q_SLOT void onFormatChanged(int index) const;
     Q_SLOT void onResolutionChanged(int index);
 
-    Q_SIGNAL void sigCameraChanged(const CameraDevice& cameraDevice,int width, int height, int fps, QString format);
+    Q_SIGNAL void sigCameraChanged(const CameraDevice& cameraDevice,int width, int height, double fps, QString format);
     Q_SIGNAL void sigScreenShot();
     Q_SIGNAL void sigRecord(bool flag);
 private:

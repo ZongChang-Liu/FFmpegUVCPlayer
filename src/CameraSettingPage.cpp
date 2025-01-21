@@ -8,14 +8,19 @@
 
 #include <ElaPushButton.h>
 #include <ElaText.h>
+#include <QApplication>
 
 #include "ElaCheckBox.h"
 #include "ElaScrollPageArea.h"
 #include "ElaSlider.h"
+#include "ElaScrollBar.h"
+#include "ElaTheme.h"
 
 
 #include <QLabel>
 #include <QVBoxLayout>
+
+#include "ThemeWidget.h"
 
 CameraSettingPage::CameraSettingPage(QWidget* parent) : QWidget(parent)
 {
@@ -24,7 +29,7 @@ CameraSettingPage::CameraSettingPage(QWidget* parent) : QWidget(parent)
     this->layout()->setContentsMargins(0, 0, 0, 0);
 
     QFont font;
-    font.setPixelSize(14);
+    font.setPixelSize(12);
     font.setFamily("Microsoft YaHei");
     m_cameraInfoLabel = new ElaText(this);
     m_cameraInfoLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -37,7 +42,7 @@ CameraSettingPage::CameraSettingPage(QWidget* parent) : QWidget(parent)
     m_resetButton->setFixedWidth(70);
     m_resetButton->setFixedHeight(30);
 
-    auto* cameraLayout = new QHBoxLayout(this);
+    auto* cameraLayout = new QHBoxLayout();
     cameraLayout->setContentsMargins(10, 10, 10, 10);
     cameraLayout->setSpacing(10);
     cameraLayout->addWidget(m_cameraInfoLabel);
@@ -45,21 +50,28 @@ CameraSettingPage::CameraSettingPage(QWidget* parent) : QWidget(parent)
     m_cameraInfoLabel->setVisible(false);
     m_resetButton->setVisible(false);
 
-    m_scrollWidget = new QWidget(this);
+    m_scrollWidget = new ThemeWidget(this);
     m_scrollWidget->setLayout(new QVBoxLayout(m_scrollWidget));
-    m_scrollWidget->layout()->setContentsMargins(10, 10, 25, 10);
+    m_scrollWidget->layout()->setContentsMargins(5, 10, 15, 10);
     m_scrollWidget->layout()->setSpacing(10);
 
-    m_scrollPage = new ElaScrollArea(this);
-    m_scrollPage->setWidget(m_scrollWidget);
-    m_scrollPage->setWidgetResizable(true);
+    const auto scrollArea = new ElaScrollArea(this);
+    scrollArea->setWidget(m_scrollWidget);
+    scrollArea->setWidgetResizable(true);
+    auto* floatVScrollBar = new ElaScrollBar(scrollArea->verticalScrollBar(), scrollArea);
+    floatVScrollBar->setIsAnimation(true);
 
     this->layout()->addItem(cameraLayout);
-    this->layout()->addWidget(m_scrollPage);
+    this->layout()->addWidget(scrollArea);
 
     connect(m_resetButton, &ElaPushButton::clicked, [this]() {
-        for (const auto& parameter : m_parameters) {
-            UVC_Win_DShow::setParameterDefault(m_cameraInfo, parameter.dataType);
+        QList<QObject*> children = m_scrollWidget->layout()->children();
+        for (QObject* child : children) {
+            if (const auto* scrollPage = dynamic_cast<ElaScrollPageArea*>(child)) {
+                if (auto* defButton = scrollPage->findChild<ElaPushButton*>()) {
+                    defButton->click();
+                }
+            }
         }
     });
 }
@@ -75,7 +87,7 @@ void CameraSettingPage::clearParameter() const
     }
 }
 
-void CameraSettingPage::updateParameter(const CameraDevice& cameraInfo, const int width, const int height, const int fps)
+void CameraSettingPage::updateParameter(const CameraDevice& cameraInfo, const int width, const int height, const double fps)
 {
     m_cameraInfoLabel->setText(tr("%1 %2x%3 %4fps").arg(cameraInfo.FriendlyName).arg(width).arg(height).arg(fps));
     if (m_cameraInfo.MonikerName == cameraInfo.MonikerName) {
@@ -101,11 +113,11 @@ void CameraSettingPage::addParameterItem(const DeviceParameter& parameter)
     scrollPage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     scrollPage->setLayout(new QVBoxLayout);
 
-    auto* showLayout = new QHBoxLayout(scrollPage);
+    auto* showLayout = new QHBoxLayout();
     showLayout->setContentsMargins(0, 0, 0, 0);
     showLayout->setSpacing(5);
 
-    auto* controlLayout = new QHBoxLayout(scrollPage);
+    auto* controlLayout = new QHBoxLayout();
     controlLayout->setContentsMargins(0, 0, 0, 0);
     controlLayout->setSpacing(10);
 
@@ -113,13 +125,14 @@ void CameraSettingPage::addParameterItem(const DeviceParameter& parameter)
     font.setPixelSize(14);
     font.setFamily("Microsoft YaHei");
 
-    auto* label = new QLabel(scrollPage);
-    label->setText(tr(ParameterTypes.at(parameter.dataType)) + ": ");
+    auto* label = new ElaText(scrollPage);
+    const auto type = ParameterTypes.at(parameter.dataType);
+    label->setText(QApplication::translate("CameraSettingPage", type,nullptr));
     label->setFont(font);
     label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     label->setFixedHeight(30);
 
-    auto* value = new QLabel(scrollPage);
+    auto* value = new ElaText(scrollPage);
     value->setText(QString::number(parameter.value));
     value->setFont(font);
     value->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
@@ -151,7 +164,6 @@ void CameraSettingPage::addParameterItem(const DeviceParameter& parameter)
     slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     slider->setEnabled(!parameter.isAuto);
 
-
     controlLayout->addWidget(slider);
     controlLayout->addWidget(isAutoCheckBox);
 
@@ -160,9 +172,15 @@ void CameraSettingPage::addParameterItem(const DeviceParameter& parameter)
 
     m_scrollWidget->layout()->addWidget(scrollPage);
 
+    connect(m_resetButton, &ElaPushButton::clicked, [this, defButton]() {
+        defButton->click();
+    });
+
     connect(defButton, &ElaPushButton::clicked, [this, parameter, slider]() {
-        slider->setValue(parameter.def);
-        UVC_Win_DShow::setParameterDefault(m_cameraInfo, parameter.dataType);
+        if (slider->value() != parameter.def) {
+            slider->setValue(parameter.def);
+            UVC_Win_DShow::setParameterDefault(m_cameraInfo, parameter.dataType);
+        }
     });
 
     connect(slider, &ElaSlider::valueChanged, [this, parameter, value](const int val) {

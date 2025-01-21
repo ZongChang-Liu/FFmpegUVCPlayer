@@ -9,13 +9,14 @@
 
 #include <QMutex>
 #include <QWidget>
+#include <libavutil/frame.h>
 
 class VideoWidget final : public QWidget {
     Q_OBJECT
 public:
     explicit VideoWidget(QWidget *parent = nullptr);
     ~VideoWidget() override;
-    Q_SLOT void onUpdateFrame(const QImage& image);
+    Q_SLOT void onUpdateFrame(const AVFrame* frame);
     void setRecordFlag(bool flag);
 protected:
     void paintEvent(QPaintEvent *event) override;

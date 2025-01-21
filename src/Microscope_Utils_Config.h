@@ -21,10 +21,14 @@
 class Microscope_Utils_Config
 {
 public:
+
     static Microscope_Utils_Config* getInstance();
     std::shared_ptr<tinyxml2::XMLDocument> getDoc() const;
 
     void init(const std::string& configPath = DEFAULT_CONFIG_PATH);
+
+    int setTranslator(const std::string& translator) const;
+    int getTranslator(std::string& translator) const;
 
     int createElement(const std::string& childName, const std::string& parentName = ROOT_ELEMENT_NAME) const;
     int removeElement(const std::string& childName, const std::string& parentName = ROOT_ELEMENT_NAME) const;

@@ -69,8 +69,29 @@ void Microscope_Utils_Config::init(const std::string& configPath)
 
     m_inited = true;
     m_configPath = configPath;
+
 }
 
+int Microscope_Utils_Config::setTranslator(const std::string& translator) const
+{
+    if (!m_inited)
+    {
+        LOG_ERROR("Config not inited");
+        return -1;
+    }
+
+    if (const int ret = isElementExist("Translator", "SystemSetting") ? setElementValue("Translator", translator, "SystemSetting") : createElement("Translator", "SystemSetting"); ret != 0)
+    {
+        LOG_ERROR("Failed to set translator");
+        return -1;
+    }
+    return 0;
+}
+
+int Microscope_Utils_Config::getTranslator(std::string& translator) const
+{
+    return getElementValue("Translator", translator, "SystemSetting");
+}
 
 int Microscope_Utils_Config::createConfigFile(const std::string& configPath)
 {
@@ -79,6 +100,10 @@ int Microscope_Utils_Config::createConfigFile(const std::string& configPath)
     doc.Parse(declaration);
     tinyxml2::XMLElement* root = doc.NewElement(ROOT_ELEMENT_NAME);
     doc.InsertEndChild(root);
+
+    tinyxml2::XMLElement* childElement = doc.NewElement("SystemSetting");
+    root->InsertEndChild(childElement);
+
     if (const tinyxml2::XMLError ret = doc.SaveFile(configPath.c_str()); ret == tinyxml2::XML_SUCCESS)
     {
         LOG_INFO("Create config file {} success", configPath);
@@ -220,7 +245,14 @@ int Microscope_Utils_Config::getElementValue(const std::string& childName, std::
         LOG_ERROR("Failed to get child element {}", childName);
         return -1;
     }
+
+    if (child_node->GetText() == nullptr)
+    {
+        LOG_ERROR("Element {} value is empty", childName);
+        return -1;
+    }
     childValue = child_node->GetText();
+    LOG_INFO("Get element {} value {} success", childName, child_node->GetText());
     return 0;
 }
 

@@ -5,17 +5,30 @@
 //
 
 #include "MyMainWindows.h"
+
+
 #include "ElaDockWidget.h"
-#include "ElaStatusBar.h"
+#include "ElaMessageBar.h"
 #include "ElaMenuBar.h"
-#include <QKeyEvent>
-#include <QVBoxLayout>
 
 #include "CameraSettingPage.h"
 #include "Microscope_Utils_Log.h"
 #include "CameraSwitchingPage.h"
-#include "FFmpegPlayer.h"
 #include "VideoWidget.h"
+#include "FFmpegPlayer.h"
+#include "FFmpegRecorder.h"
+
+
+#include <QKeyEvent>
+#include <QDateTime>
+#include <QVBoxLayout>
+#include <QMetaEnum>
+#include <QProcess>
+#include <QCoreApplication>
+#include <QSharedMemory>
+#include <QTranslator>
+
+#include "Microscope_Utils_Config.h"
 
 MyMainWindows::MyMainWindows(QWidget* parent) : ElaWindow(parent)
 {
@@ -34,14 +47,17 @@ MyMainWindows::MyMainWindows(QWidget* parent) : ElaWindow(parent)
     initEdgeLayout();
     initContentLayout();
 
-
     m_ffmpegPlayer = new FFmpegPlayer(this);
+    m_ffmpegRecorder = new FFmpegRecorder(this);
     connect(m_ffmpegPlayer, &FFmpegPlayer::sigFrameReaded, m_videoWidget, &VideoWidget::onUpdateFrame);
+    connect(m_ffmpegPlayer, &FFmpegPlayer::sigPlayStatusChange, this, &MyMainWindows::onPlayStatusChange);
+    connect(m_ffmpegPlayer, &FFmpegPlayer::sigFrameReaded, m_ffmpegRecorder, &FFmpegRecorder::onFrameReceived);
 
+    connect(m_ffmpegRecorder, &FFmpegRecorder::sigRecordStatusChange, this, &MyMainWindows::onRecordStatusChange);
 
     connect(m_cameraSwitchingPage, &CameraSwitchingPage::sigCameraChanged, this, &MyMainWindows::onCameraChanged);
-    connect(m_cameraSwitchingPage, &CameraSwitchingPage::sigRecord, m_videoWidget, &VideoWidget::setRecordFlag);
-    connect(m_cameraSwitchingPage, &CameraSwitchingPage::sigScreenShot, [this]() { LOG_DEBUG("ScreenShot"); });
+    connect(m_cameraSwitchingPage, &CameraSwitchingPage::sigRecord,this, &MyMainWindows::onCameraRecord);
+    connect(m_cameraSwitchingPage, &CameraSwitchingPage::sigScreenShot, this, &MyMainWindows::onCameraScreenShot);
     m_cameraSwitchingPage->updateCameraInfo();
 }
 
@@ -51,6 +67,12 @@ MyMainWindows::~MyMainWindows()
     {
         m_ffmpegPlayer->close();
         delete m_ffmpegPlayer;
+    }
+
+    if (m_ffmpegRecorder)
+    {
+        m_ffmpegRecorder->stopRecord();
+        delete m_ffmpegRecorder;
     }
 }
 
@@ -121,12 +143,53 @@ void MyMainWindows::initEdgeLayout()
     customLayout->addStretch();
     this->setCustomWidget(ElaAppBarType::LeftArea, customWidget);
 
+    auto* group = new QActionGroup(this);
+    auto* menu = new ElaMenu(tr("语言"), this);
+    auto* action_zh_CN = new QAction("中文", this);
+    action_zh_CN->setObjectName("zh_CN");
+    action_zh_CN->setCheckable(true);
+    auto* action_en = new QAction("English", this);
+    action_en->setObjectName("en");
+    action_en->setCheckable(true);
+    group->addAction(action_zh_CN);
+    group->addAction(action_en);
 
-    auto* statusBar = new ElaStatusBar(this);
-    m_statusText = new ElaText(tr("系统初始化成功! "), this);
-    m_statusText->setTextPixelSize(12);
-    statusBar->addWidget(m_statusText);
-    this->setStatusBar(statusBar);
+    std::string translator_config;
+    if (configApp->getTranslator(translator_config) == 0)
+    {
+        LOG_INFO("current date: {}",translator_config);
+        if (translator_config == "en")
+        {
+            action_en->setChecked(true);
+        }
+        else
+        {
+            action_zh_CN->setChecked(true);
+        }
+    } else
+    {
+        if (QLocale::system().name() == "zh_CN")
+        {
+            action_zh_CN->setChecked(true);
+        }
+        else
+        {
+            action_en->setChecked(true);
+        }
+    }
+
+
+    connect(action_zh_CN, &QAction::triggered, this,&MyMainWindows::onTranslatorChanged);
+    connect(action_en, &QAction::triggered, this, &MyMainWindows::onTranslatorChanged);
+    menu->addAction(action_zh_CN);
+    menu->addAction(action_en);
+    menuBar->addMenu(menu);
+
+    // auto* statusBar = new ElaStatusBar(this);
+    // m_statusText = new ElaText(tr("系统初始化成功! "), this);
+    // m_statusText->setTextPixelSize(12);
+    // statusBar->addWidget(m_statusText);
+    // this->setStatusBar(statusBar);
 }
 
 void MyMainWindows::initContentLayout()
@@ -164,7 +227,45 @@ void MyMainWindows::createDockWidget(const QString& title, QWidget* widget, cons
     m_docketMenu->addAction(action);
 }
 
-void MyMainWindows::onCameraChanged(const CameraDevice& cameraDevice, const int width, const int height, const int fps,
+void MyMainWindows::onTranslatorChanged(bool checked) const
+{
+    const auto* action = qobject_cast<QAction*>(sender());
+    if (!action)
+    {
+        return;
+    }
+
+    std::string translator_config;
+    if (configApp->getTranslator(translator_config) != 0)
+    {
+        if (QLocale::system().name() == "zh_CN")
+        {
+            configApp->setTranslator("zh_CN");
+            translator_config = "zh_CN";
+        }
+        else
+        {
+            configApp->setTranslator("en");
+            translator_config = "en";
+        }
+    }
+
+    if (translator_config == action->objectName().toStdString())
+    {
+        LOG_INFO("current translator_config is same");
+        return;
+    }
+
+
+    if (configApp->setTranslator(action->objectName().toStdString()) == 0)
+    {
+        LOG_INFO("restart application");
+        qApp->quit();
+        QProcess::startDetached(QCoreApplication::applicationFilePath(), QStringList());
+    }
+}
+
+void MyMainWindows::onCameraChanged(const CameraDevice& cameraDevice, const int width, const int height, const double fps,
                                     const QString& format) const
 {
     QString ffmpegPath = cameraDevice.MonikerName;
@@ -173,6 +274,141 @@ void MyMainWindows::onCameraChanged(const CameraDevice& cameraDevice, const int 
              format.toStdString().c_str());
     m_ffmpegPlayer->playDevice(ffmpegPath, width, height, fps, format.toLower());
     m_cameraSettingPage->updateParameter(cameraDevice, width, height, fps);
+}
+
+void MyMainWindows::onCameraRecord(const bool record) const
+{
+    if (record)
+    {
+        const QString current_date = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
+        const QString path = "./" + current_date + ".mp4";
+        const int width = m_ffmpegPlayer->getFrameWidth();
+        const int height = m_ffmpegPlayer->getFrameHeight();
+        const int fps = m_ffmpegPlayer->getFps();
+
+        if (width <= 0 || height <= 0 || fps <= 0)
+        {
+            LOG_ERROR("record failed, please check camera device\n");
+            return;
+        }
+        LOG_INFO("record path: {} width: {} height: {} fps: {}", path.toStdString(), width, height, fps);
+        m_ffmpegRecorder->startRecord(path.toStdString(), width, height, fps);
+    }
+    else
+    {
+        m_ffmpegRecorder->stopRecord();
+    }
+}
+
+void MyMainWindows::onCameraScreenShot() const
+{
+    if (m_ffmpegPlayer->isRunning())
+    {
+        const QString current_date = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
+        const QString path = "./" + current_date + ".jpg";
+        if (const AVFrame* frame = m_ffmpegPlayer->getFrame())
+        {
+            const QImage image(frame->data[0], frame->width, frame->height, QImage::Format_RGB888);
+            if (image.isNull())
+            {
+                LOG_ERROR("screen shot failed");
+                return;
+            }
+            if (!image.save(path))
+            {
+                LOG_ERROR("save screen shot failed");
+                ElaMessageBar::error(ElaMessageBarType::TopLeft, tr("截图失败"), tr("请检查路径或者权限"), 1000);
+                return;
+            }
+            LOG_INFO("screen shot path: {}", path.toStdString());
+            ElaMessageBar::success(ElaMessageBarType::TopLeft, tr("截图成功"), tr("保存路径:") + path, 1000);
+        }
+    }
+    else
+    {
+        LOG_ERROR("screen shot failed, please check camera device");
+        ElaMessageBar::error(ElaMessageBarType::TopLeft, tr("截图失败"), tr("请检查相机设备"), 1000);
+    }
+}
+
+void MyMainWindows::onPlayStatusChange(const int status) const
+{
+    switch (status)
+    {
+    case FFmpegPlayer::Status::STATUS_ERROR:
+        {
+            ElaMessageBar::error(ElaMessageBarType::TopLeft, tr("播放错误"), tr("请检查相机设备"), 1000);
+            m_cameraSwitchingPage->setEnabled(true);
+            break;
+        }
+    case FFmpegPlayer::Status::STATUS_INITIALIZING:
+        {
+            ElaMessageBar::information(ElaMessageBarType::TopLeft, tr("初始化中"), tr("请稍等"), 1000);
+            m_cameraSwitchingPage->setEnabled(false);
+            break;
+        }
+    case FFmpegPlayer::Status::STATUS_PLAYING:
+        {
+            ElaMessageBar::success(ElaMessageBarType::TopLeft, tr("播放成功"), tr("请查看视频"), 1000);
+            m_cameraSwitchingPage->setEnabled(true);
+            m_cameraSwitchingPage->setRecordButtonEnable(true);
+            m_cameraSwitchingPage->setScreenShotButtonEnable(true);
+            break;
+        }
+    case FFmpegPlayer::Status::STATUS_STOPPED:
+        {
+            ElaMessageBar::information(ElaMessageBarType::TopLeft, tr("播放停止"), tr("设备已关闭"), 1000);
+            m_ffmpegRecorder->stopRecord();
+            m_cameraSwitchingPage->setEnabled(true);
+            m_cameraSwitchingPage->setRecordButtonEnable(false);
+            m_cameraSwitchingPage->setScreenShotButtonEnable(false);
+            break;
+        }
+    default: break;
+    }
+    LOG_INFO("play status: {}", QMetaEnum::fromType<FFmpegPlayer::Status>().valueToKey(status));
+}
+
+void MyMainWindows::onRecordStatusChange(const int status) const
+{
+    switch (status)
+    {
+        case FFmpegRecorder::Status::STATUS_ERROR:
+        {
+            ElaMessageBar::error(ElaMessageBarType::TopLeft, tr("录制错误"), tr("请检查路径或者权限"), 1000);
+            m_cameraSwitchingPage->setRecordButtonChecked(false);
+            break;
+        }
+        case FFmpegRecorder::Status::STATUS_INITIALIZING:
+        {
+            ElaMessageBar::information(ElaMessageBarType::TopLeft, tr("初始化中"), tr("请稍等..."), 1000);
+            m_cameraSwitchingPage->setRecordButtonEnable(false);
+            break;
+        }
+        case FFmpegRecorder::Status::STATUS_RECORDING:
+        {
+            ElaMessageBar::success(ElaMessageBarType::TopLeft, tr("录制中"), tr("请稍等..."), 1000);
+            m_cameraSwitchingPage->setRecordButtonEnable(true);
+            m_videoWidget->setRecordFlag(true);
+            break;
+        }
+        case FFmpegRecorder::Status::STATUS_STOPPED:
+        {
+            ElaMessageBar::information(ElaMessageBarType::TopLeft, tr("录制停止"), tr("录制已结束"), 1000);
+            m_cameraSwitchingPage->setRecordButtonChecked(false);
+            m_cameraSwitchingPage->setRecordButtonEnable(true);
+            m_videoWidget->setRecordFlag(false);
+            break;
+        }
+        case FFmpegRecorder::Status::STATUS_OK:
+        {
+            ElaMessageBar::success(ElaMessageBarType::TopLeft, tr("录制成功"), tr("请查看视频"), 1000);
+            m_cameraSwitchingPage->setRecordButtonEnable(true);
+            break;
+        }
+    default: break;
+    }
+    LOG_INFO("record status: {}", QMetaEnum::fromType<FFmpegRecorder::Status>().valueToKey(status));
 }
 
 void MyMainWindows::keyPressEvent(QKeyEvent* event)
@@ -196,7 +432,6 @@ bool MyMainWindows::nativeEvent(const QByteArray& eventType, void* message, long
     MSG* msg = static_cast<MSG*>(message);
     switch (msg->message)
     {
-    ///////////////////////////这个是设备变化的消息////////////////////////////
     case WM_DEVICECHANGE:
         {
             if (msg->wParam == DBT_DEVICEARRIVAL || msg->wParam == DBT_DEVICEREMOVECOMPLETE)

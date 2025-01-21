@@ -7,7 +7,6 @@
 #ifndef FFMPEG_PLAYER_H
 #define FFMPEG_PLAYER_H
 
-#include <QMutex>
 #include <QThread>
 
 extern "C" {
@@ -20,37 +19,46 @@ extern "C" {
 
 #define ERROR_TIMES_MAX 30
 
-static const char *getErrorString(const int errorCode) {
-    const auto errorStr = new char[1024];
-    return av_make_error_string(errorStr, AV_ERROR_MAX_STRING_SIZE, errorCode);
-}
+
 
 class FFmpegPlayer final : public QThread {
-public:
-
-
-private:
     Q_OBJECT
-
 public:
+    enum Status {
+        STATUS_ERROR,
+        STATUS_INITIALIZING,
+        STATUS_PLAYING,
+        STATUS_STOPPED,
+    };
+    Q_ENUM(Status)
+
+    static const char *getErrorString(const int errorCode) {
+        const auto errorStr = new char[1024];
+        return av_make_error_string(errorStr, AV_ERROR_MAX_STRING_SIZE, errorCode);
+    }
+
     explicit FFmpegPlayer(QObject *parent = nullptr);
     ~FFmpegPlayer() override;
 
-    int openDevice(const QString& path, int width, int height, int fps, const QString& format);
     int open(const std::string &url, AVDictionary *options = nullptr);
     int close();
 
     void playDevice(const QString& path, int width, int height, int fps, const QString& format);
     void playUrl(const std::string& url, AVDictionary* options = nullptr);
 
+    [[nodiscard]]AVFrame* getFrame() const;
+    [[nodiscard]] int getFrameWidth() const;
+    [[nodiscard]] int getFrameHeight() const;
+    [[nodiscard]] int getFps() const;
+
     void run() override;
 
-    Q_SIGNAL void sigFrameReaded(const QImage& frame);
+    Q_SIGNAL void sigFrameReaded(const AVFrame* frame);
+    Q_SIGNAL void sigPlayStatusChange(int statue);
 private:
-    QMutex m_mutex;
     bool m_isPlaying{false};
-
     bool m_isOpened{false};
+
     AVFormatContext* m_srcFormatContext{nullptr};
     AVCodecContext* m_srcCodecContext{nullptr};
     AVDictionary* m_options{nullptr};
@@ -63,8 +71,7 @@ private:
 
     SwsContext* m_swsContext{nullptr};
 
-    AVFrame* m_renderFrame{nullptr};
-    QImage* m_frame{nullptr};
+    AVFrame* m_frame{nullptr};
 };
 
 

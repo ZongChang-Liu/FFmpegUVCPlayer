@@ -2,5 +2,6 @@
     <qresource prefix="/">
         <file>resources/loadCode.ttf</file>
         <file>resources/logo.png</file>
+        <file>resources/translations/en.qm</file>
     </qresource>
 </RCC>

@@ -14,10 +14,11 @@ CameraSwitchingPage::CameraSwitchingPage(QWidget* parent) : QWidget(parent)
     auto* layout = new QVBoxLayout(this);
     this->setLayout(layout);
     layout->setContentsMargins(10, 10, 10, 10);
+    layout->setAlignment(Qt::AlignTop | Qt::AlignCenter);
     layout->setSpacing(10);
 
     QFont font;
-    font.setPixelSize(14);
+    font.setPixelSize(12);
     font.setFamily("Microsoft YaHei");
 
     const auto cameraLabel = new ElaText(tr("相机"), this);
@@ -25,6 +26,7 @@ CameraSwitchingPage::CameraSwitchingPage(QWidget* parent) : QWidget(parent)
     m_cameraComboBox = new ElaComboBox(this);
     m_cameraComboBox->setFont(font);
     m_cameraComboBox->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
     auto* cameraLayout = new QHBoxLayout;
     cameraLayout->setSpacing(10);
     cameraLayout->addWidget(cameraLabel);
@@ -40,7 +42,7 @@ CameraSwitchingPage::CameraSwitchingPage(QWidget* parent) : QWidget(parent)
     formatLayout->addWidget(formatLabel);
     formatLayout->addWidget(m_formatComboBox);
 
-    const auto resolutionLabel = new ElaText("分辨率", this);
+    const auto resolutionLabel = new ElaText(tr("分辨率"), this);
     resolutionLabel->setFont(font);
     m_resolutionComboBox = new ElaComboBox(this);
     m_resolutionComboBox->setFont(font);
@@ -52,15 +54,14 @@ CameraSwitchingPage::CameraSwitchingPage(QWidget* parent) : QWidget(parent)
 
     m_screenShotButton = new ElaPushButton(tr("截图"), this);
     m_screenShotButton->setFont(font);
-    m_screenShotButton->setFixedWidth(100);
+    m_screenShotButton->setFixedWidth(80);
     m_recordButton = new ElaToggleButton(tr("录制"), this);
     m_recordButton->setFont(font);
-    m_recordButton->setFixedWidth(100);
+    m_recordButton->setFixedWidth(80);
     const auto buttonLayout = new QHBoxLayout;
     buttonLayout->setSpacing(10);
     buttonLayout->addWidget(m_screenShotButton);
     buttonLayout->addWidget(m_recordButton);
-
 
     layout->addItem(cameraLayout);
     layout->addItem(formatLayout);
@@ -76,7 +77,10 @@ CameraSwitchingPage::CameraSwitchingPage(QWidget* parent) : QWidget(parent)
     connect(m_recordButton, &ElaToggleButton::toggled, this, &CameraSwitchingPage::sigRecord);
 }
 
-CameraSwitchingPage::~CameraSwitchingPage() = default;
+CameraSwitchingPage::~CameraSwitchingPage()
+{
+    m_cameraList.clear();
+}
 
 void CameraSwitchingPage::updateCameraInfo()
 {
@@ -85,6 +89,24 @@ void CameraSwitchingPage::updateCameraInfo()
     for (const auto& camera : m_cameraList) {
         m_cameraComboBox->addItem(camera.FriendlyName);
     }
+}
+
+void CameraSwitchingPage::setRecordButtonEnable(const bool flag) const
+{
+    m_recordButton->setEnabled(flag);
+}
+
+void CameraSwitchingPage::setScreenShotButtonEnable(const bool flag) const
+{
+    m_screenShotButton->setEnabled(flag);
+}
+
+void CameraSwitchingPage::setRecordButtonChecked(const bool flag) const
+{
+    if (m_recordButton->getIsToggled() == flag) {
+        return;
+    }
+    m_recordButton->setIsToggled(flag);
 }
 
 void CameraSwitchingPage::onCameraChanged(const int index)
@@ -123,12 +145,12 @@ void CameraSwitchingPage::onResolutionChanged(const int index)
         return;
     }
 
-    int width = 0, height = 0, fps = 0;
+
     const auto format = m_formatComboBox->currentText();
     const auto resolution = m_resolutionComboBox->currentText();
-    width = resolution.split("x")[0].toInt();
-    height = resolution.split("x")[1].split(" ")[0].toInt();
-    fps = resolution.split(" ")[1].split("fps")[0].toInt();
+    int width = resolution.split("x")[0].toInt();
+    int height = resolution.split("x")[1].split(" ")[0].toInt();
+    double fps = resolution.split(" ")[1].split("fps")[0].toDouble();
 
     Q_EMIT sigCameraChanged(m_cameraList[m_cameraComboBox->currentIndex()],width, height, fps, format);
     LOG_DEBUG("sigCameraChanged camera path:{} width:{} height:{} fps:{} format:{}", m_cameraList[m_cameraComboBox->currentIndex()].MonikerName, width, height, fps, format.toStdString());
